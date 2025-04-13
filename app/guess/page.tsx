@@ -46,20 +46,24 @@ export default function Guess() {
     },
   });
 
-  const { data: guessData } = db.useQuery(
-    playerData?.players[0]?.name && gameData?.gameState[0]?.round !== null
+  const playerName = playerData?.players?.[0]?.name;
+  const currentRound = gameData?.gameState?.[0]?.round;
+
+  const query =
+    playerName && currentRound != null
       ? {
           guesses: {
             $: {
               where: {
-                playerName: playerData.players[0].name,
-                round: gameData.gameState[0].round,
+                playerName,
+                round: currentRound,
               },
             },
           },
         }
-      : null
-  );
+      : null;
+
+  const { data: guessData } = db.useQuery(query);
 
   if (!playerData || !gameData) {
     return null;
