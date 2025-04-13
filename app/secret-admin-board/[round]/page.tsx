@@ -131,14 +131,11 @@ export default function Board() {
           </p>
         </div>
         <div className="flex-1 overflow-y-auto">
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">
-            Leaderboard
-          </h2>
-          <div className="space-y-2">
+          <div className="space-y-1">
             {sortedPlayers.map((player) => (
               <div
                 key={player.id}
-                className="flex justify-between items-center bg-gray-50 p-2 rounded"
+                className="flex justify-between items-center bg-gray-50 px-2 py-1 rounded text-sm"
               >
                 <span className="font-medium">{player.name}</span>
                 <span className="tabular-nums">{player.points} points</span>

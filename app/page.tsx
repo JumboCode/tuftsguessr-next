@@ -29,7 +29,7 @@ export default function Login() {
             return;
           }
 
-          db.transact(db.tx.players[playerId].update({ name }));
+          db.transact(db.tx.players[playerId].update({ name, points: 0 }));
 
           router.push("/guess");
         }}
