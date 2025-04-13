@@ -85,7 +85,7 @@ export default function Board() {
       if (secondsRef.current <= 0) {
         const gameState = data.gameState[0];
         const nextImage = gameState.image + 1;
-        if (nextImage <= 5) {
+        if (nextImage <= 4) {
           db.transact(
             db.tx.gameState[SINGLETON_ID].update({
               image: nextImage,
@@ -121,8 +121,11 @@ export default function Board() {
 
   const clue = clues[gameState.round];
   const imageUrl = `/photos/${clue.slug}_${
-    gameState.image === 5 ? 4 : gameState.image + 1
+    gameState.image === 4 ? 4 : gameState.image + 1
   }.jpg`;
+
+  const building = buildings.find((b) => b.building_id === clue.building_id);
+  const buildingName = building?.name || "";
 
   const sortedPlayers = [...(data.players || [])].sort(
     (a, b) => b.points - a.points
@@ -136,7 +139,14 @@ export default function Board() {
 
   return (
     <div className="grid grid-cols-[auto_minmax(400px,1fr)] h-screen items-center">
-      <img src={imageUrl} alt="" className="max-h-screen object-contain" />
+      <div className="relative">
+        <img src={imageUrl} alt="" className="max-h-screen object-contain" />
+        {gameState.image === 4 && (
+          <div className="absolute inset-0 bg-white/75 flex items-center justify-center">
+            <p className="text-6xl font-bold text-gray-950">{buildingName}</p>
+          </div>
+        )}
+      </div>
       <div className="p-4 h-full flex flex-col gap-4">
         <div>
           <div className="flex justify-between items-end">
