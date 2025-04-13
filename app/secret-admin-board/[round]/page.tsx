@@ -1,9 +1,10 @@
 "use client";
 
+import { Button } from "@/components/button";
 import clues from "@/lib/clues";
 import db, { SINGLETON_ID } from "@/lib/db";
 import { useParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
 
 const IMAGE_TO_POINTS = {
   0: 100,
@@ -13,8 +14,14 @@ const IMAGE_TO_POINTS = {
   4: 0,
 } as const;
 
+const SECONDS = 15;
+
 export default function Board() {
   const { round } = useParams<{ round: string }>();
+  const [displaySeconds, setDisplaySeconds] = useState(SECONDS);
+  const timerRef = useRef<number | undefined>(undefined);
+  const secondsRef = useRef<number>(SECONDS);
+  const initializedRef = useRef(false);
 
   const { data } = db.useQuery({
     gameState: {
@@ -26,11 +33,13 @@ export default function Board() {
     },
   });
 
+  // Initialize only when round changes
   useEffect(() => {
-    if (!data) {
-      return;
-    }
+    if (!data || initializedRef.current) return;
 
+    initializedRef.current = true;
+    secondsRef.current = SECONDS;
+    setDisplaySeconds(SECONDS);
     db.transact(
       db.tx.gameState[SINGLETON_ID].update({
         round: parseInt(round),
@@ -40,28 +49,77 @@ export default function Board() {
     );
   }, [round, data]);
 
+  // Timer effect
+  useEffect(() => {
+    if (!data) return;
+
+    // Clear any existing timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+
+    // Set up new timer
+    timerRef.current = window.setInterval(() => {
+      secondsRef.current -= 1;
+      setDisplaySeconds(secondsRef.current);
+
+      if (secondsRef.current <= 0) {
+        const gameState = data.gameState[0];
+        const nextImage = gameState.image + 1;
+        if (nextImage <= 5) {
+          db.transact(
+            db.tx.gameState[SINGLETON_ID].update({
+              image: nextImage,
+              points:
+                IMAGE_TO_POINTS[nextImage as keyof typeof IMAGE_TO_POINTS] || 0,
+            })
+          );
+        }
+        secondsRef.current = SECONDS;
+        setDisplaySeconds(SECONDS);
+      }
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [data]);
+
   if (!data) {
     return null;
   }
 
   const gameState = data.gameState[0];
-
   const clue = clues[gameState.round];
   const imageUrl = `/photos/${clue.slug}_${
-    gameState.image === 4 ? 4 : gameState.image + 1
+    gameState.image === 5 ? 4 : gameState.image + 1
   }.jpg`;
-
-  console.log(imageUrl);
 
   return (
     <div className="grid grid-cols-[auto_minmax(400px,1fr)] h-screen items-center">
       <img src={imageUrl} alt="" className="max-h-screen object-contain" />
-      <div className="p-4">
+      <div className="p-4 h-full">
         <div>
-          <p className="font-medium text-lg text-gray-700">
-            Round {gameState.round + 1} of {clues.length}
+          <div className="flex justify-between items-end">
+            <p className="font-medium text-lg text-gray-700">
+              Round {gameState.round + 1} of {clues.length}
+            </p>
+            {gameState.round + 1 < clues.length && (
+              <Button href={`/secret-admin-board/${gameState.round + 1}`} plain>
+                Next
+              </Button>
+            )}
+          </div>
+          <p className="text-3xl font-bold text-gray-950">
+            {gameState.image >= 5
+              ? "0:00"
+              : `0:${displaySeconds.toString().padStart(2, "0")}`}
           </p>
-          <p className="text-3xl font-bold text-gray-950">0:08</p>
+          <p className="text-3xl font-bold text-gray-950 tabular-nums">
+            {gameState.points} points
+          </p>
         </div>
       </div>
     </div>
