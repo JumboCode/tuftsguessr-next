@@ -31,6 +31,7 @@ export default function Board() {
         },
       },
     },
+    players: {},
   });
 
   // Initialize only when round changes
@@ -88,19 +89,27 @@ export default function Board() {
   }, [data]);
 
   if (!data) {
-    return null;
+    return <div className="p-4">Loading...</div>;
   }
 
   const gameState = data.gameState[0];
+  if (!gameState) {
+    return <div className="p-4">Game state not found</div>;
+  }
+
   const clue = clues[gameState.round];
   const imageUrl = `/photos/${clue.slug}_${
     gameState.image === 5 ? 4 : gameState.image + 1
   }.jpg`;
 
+  const sortedPlayers = [...(data.players || [])].sort(
+    (a, b) => b.points - a.points
+  );
+
   return (
     <div className="grid grid-cols-[auto_minmax(400px,1fr)] h-screen items-center">
       <img src={imageUrl} alt="" className="max-h-screen object-contain" />
-      <div className="p-4 h-full">
+      <div className="p-4 h-full flex flex-col gap-4">
         <div>
           <div className="flex justify-between items-end">
             <p className="font-medium text-lg text-gray-700">
@@ -120,6 +129,22 @@ export default function Board() {
           <p className="text-3xl font-bold text-gray-950 tabular-nums">
             {gameState.points} points
           </p>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">
+            Leaderboard
+          </h2>
+          <div className="space-y-2">
+            {sortedPlayers.map((player) => (
+              <div
+                key={player.id}
+                className="flex justify-between items-center bg-gray-50 p-2 rounded"
+              >
+                <span className="font-medium">{player.name}</span>
+                <span className="tabular-nums">{player.points} points</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
