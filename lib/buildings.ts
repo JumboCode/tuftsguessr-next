@@ -98,7 +98,7 @@ const buildings = [
   { building_id: 123, name: "Blakeley Hall" },
   { building_id: 124, name: "Bush Hall" },
   { building_id: 125, name: "Capen House" },
-  { building_id: 126, name: "Carmichael Hall" },
+  { building_id: 127, name: "Carmichael Hall" },
   { building_id: 128, name: "Carpenter House" },
   { building_id: 129, name: "Chandler House" },
   { building_id: 130, name: "Crafts" },

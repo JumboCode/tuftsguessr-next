@@ -111,7 +111,9 @@ export default function Guess() {
   };
 
   const filteredBuildings = buildings.filter((building) =>
-    building.name.toLowerCase().includes(buildingQuery.toLowerCase())
+    `${building.building_id} ${building.name}`
+      .toLowerCase()
+      .includes(buildingQuery.toLowerCase())
   );
 
   return (
