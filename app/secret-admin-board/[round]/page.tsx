@@ -5,6 +5,8 @@ import clues from "@/lib/clues";
 import db, { SINGLETON_ID } from "@/lib/db";
 import { useParams } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
+import clsx from "clsx";
+import buildings from "@/lib/buildings";
 
 const IMAGE_TO_POINTS = {
   0: 100,
@@ -32,6 +34,17 @@ export default function Board() {
       },
     },
     players: {},
+    guesses: {
+      $: {
+        where: {
+          round: parseInt(round),
+        },
+        order: {
+          serverCreatedAt: "desc",
+        },
+        limit: 15,
+      },
+    },
   });
 
   // Initialize only when round changes
@@ -106,6 +119,12 @@ export default function Board() {
     (a, b) => b.points - a.points
   );
 
+  const correctPlayers = new Set(
+    (data.guesses || [])
+      .filter((guess) => guess.buildingId === clue.building_id)
+      .map((guess) => guess.playerName)
+  );
+
   return (
     <div className="grid grid-cols-[auto_minmax(400px,1fr)] h-screen items-center">
       <img src={imageUrl} alt="" className="max-h-screen object-contain" />
@@ -135,12 +154,44 @@ export default function Board() {
             {sortedPlayers.map((player) => (
               <div
                 key={player.id}
-                className="flex justify-between items-center bg-gray-50 px-2 py-1 rounded text-sm"
+                className={clsx(
+                  "flex justify-between items-center bg-gray-50 px-2 py-1 rounded text-sm",
+                  correctPlayers.has(player.name) && "bg-green-50"
+                )}
               >
-                <span className="font-medium">{player.name}</span>
+                <span className="font-medium">
+                  {player.name}
+                  {correctPlayers.has(player.name) && " ✅"}
+                </span>
                 <span className="tabular-nums">{player.points} points</span>
               </div>
             ))}
+          </div>
+          <div className="mt-4">
+            <h3 className="font-medium text-gray-900 mb-2">Latest Guesses</h3>
+            <div className="space-y-1">
+              {(data.guesses || []).map((guess) => (
+                <div
+                  key={guess.id}
+                  className="bg-gray-50 px-2 py-1 rounded text-sm"
+                >
+                  {guess.buildingId === clue.building_id ? (
+                    <span className="text-green-600">
+                      {guess.playerName} got it correct!
+                    </span>
+                  ) : (
+                    <span className="text-gray-600">
+                      {guess.playerName} guessed{" "}
+                      {
+                        buildings.find(
+                          (b) => b.building_id === guess.buildingId
+                        )?.name
+                      }
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
