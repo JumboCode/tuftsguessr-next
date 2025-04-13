@@ -80,7 +80,13 @@ export default function Guess() {
   const currentClue = gameState.round === null ? null : clues[gameState.round];
 
   const handleGuess = (buildingId: number) => {
-    if (guessesLeft <= 0 || !playerId || gameState.round === null) return;
+    if (
+      guessesLeft <= 0 ||
+      !playerId ||
+      gameState.round === null ||
+      gameState.image === 4
+    )
+      return;
 
     const isCorrect = buildingId === currentClue?.building_id;
     const newPoints = isCorrect
@@ -167,7 +173,10 @@ export default function Guess() {
                     plain
                     onClick={() => handleGuess(building.building_id)}
                     disabled={
-                      guessesLeft <= 0 || !!guess || gameState.round === null
+                      guessesLeft <= 0 ||
+                      !!guess ||
+                      gameState.round === null ||
+                      gameState.image === 4
                     }
                     className={clsx({
                       "bg-green-500/15 text-green-700": isCorrect,
