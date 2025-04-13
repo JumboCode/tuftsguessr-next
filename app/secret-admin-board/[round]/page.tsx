@@ -110,6 +110,10 @@ export default function Board() {
     return <div className="p-4">Game state not found</div>;
   }
 
+  if (gameState.round === null) {
+    return <div className="p-4">No round yet</div>;
+  }
+
   const clue = clues[gameState.round];
   const imageUrl = `/photos/${clue.slug}_${
     gameState.image === 5 ? 4 : gameState.image + 1

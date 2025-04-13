@@ -19,7 +19,6 @@ const _schema = i.schema({
       round: i.number(),
       image: i.number(),
       points: i.number(),
-      delaySeconds: i.number(),
     }),
     guesses: i.entity({
       round: i.number(),
