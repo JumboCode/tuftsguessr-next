@@ -47,7 +47,7 @@ export default function Guess() {
   });
 
   const { data: guessData } = db.useQuery(
-    playerData?.players[0]?.name && gameData?.gameState[0]?.round !== undefined
+    playerData?.players[0]?.name && gameData?.gameState[0]?.round !== null
       ? {
           guesses: {
             $: {
@@ -68,13 +68,13 @@ export default function Guess() {
   const player = playerData.players[0];
   const gameState = gameData.gameState[0];
   const guesses = guessData?.guesses || [];
-  const guessesLeft = 2 - guesses.length;
-  const currentClue = clues[gameState.round];
+  const guessesLeft = gameState.round === null ? 0 : 2 - guesses.length;
+  const currentClue = gameState.round === null ? null : clues[gameState.round];
 
   const handleGuess = (buildingId: number) => {
-    if (guessesLeft <= 0 || !playerId) return;
+    if (guessesLeft <= 0 || !playerId || gameState.round === null) return;
 
-    const isCorrect = buildingId === currentClue.building_id;
+    const isCorrect = buildingId === currentClue?.building_id;
     const newPoints = isCorrect
       ? (player.points || 0) + gameState.points
       : player.points || 0;
@@ -107,11 +107,15 @@ export default function Guess() {
           <p className="font-semibold">Hello, {player.name}!</p>
           <div className="mt-0.5 flex flex-wrap items-center gap-2">
             <div className="text-xs bg-gray-100 border border-gray-200 rounded-full w-max px-2 text-gray-600">
-              Round {gameState.round + 1} of {clues.length}
+              {gameState.round === null
+                ? "About to start"
+                : `Round ${gameState.round + 1} of ${clues.length}`}
             </div>
-            <div className="text-xs bg-gray-100 border border-gray-200 rounded-full w-max px-2 text-gray-600">
-              {guessesLeft} {guessesLeft === 1 ? "guess" : "guesses"} left
-            </div>
+            {gameState.round !== null && (
+              <div className="text-xs bg-gray-100 border border-gray-200 rounded-full w-max px-2 text-gray-600">
+                {guessesLeft} {guessesLeft === 1 ? "guess" : "guesses"} left
+              </div>
+            )}
           </div>
         </div>
 
@@ -134,9 +138,9 @@ export default function Guess() {
                 (g) => g.buildingId === building.building_id
               );
               const isCorrect =
-                guess && building.building_id === currentClue.building_id;
+                guess && building.building_id === currentClue?.building_id;
               const isIncorrect =
-                guess && building.building_id !== currentClue.building_id;
+                guess && building.building_id !== currentClue?.building_id;
 
               return (
                 <div key={building.building_id} className="contents group">
@@ -149,7 +153,9 @@ export default function Guess() {
                   <Button
                     plain
                     onClick={() => handleGuess(building.building_id)}
-                    disabled={guessesLeft <= 0 || !!guess}
+                    disabled={
+                      guessesLeft <= 0 || !!guess || gameState.round === null
+                    }
                     className={clsx({
                       "bg-green-500/15 text-green-700": isCorrect,
                       "bg-red-500/15 text-red-700": isIncorrect,
