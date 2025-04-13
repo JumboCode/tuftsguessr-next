@@ -21,6 +21,10 @@ interface Guess {
 export default function Guess() {
   const playerId = usePlayerId();
   const [buildingQuery, setBuildingQuery] = useState("");
+  const publishPlaySound = db.rooms.usePublishTopic(
+    db.room("admin"),
+    "play_sound"
+  );
 
   const { data: playerData } = db.useQuery(
     playerId
@@ -93,6 +97,11 @@ export default function Guess() {
         points: newPoints,
       }),
     ]);
+
+    if (isCorrect) {
+      console.log("correct");
+      publishPlaySound({});
+    }
   };
 
   const filteredBuildings = buildings.filter((building) =>
@@ -136,7 +145,7 @@ export default function Guess() {
             </InputGroup>
           </div>
 
-          <div className="-mt-1 px-4 pb-8 grid grid-cols-[max-content_1fr_max-content] items-baseline gap-x-4">
+          <div className="-mt-1 px-4 pb-8 grid grid-cols-[max-content_1fr_max-content] items-center gap-x-4">
             {filteredBuildings.map((building) => {
               const guess = guesses.find(
                 (g) => g.buildingId === building.building_id

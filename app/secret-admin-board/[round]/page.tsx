@@ -25,6 +25,11 @@ export default function Board() {
   const secondsRef = useRef<number>(SECONDS);
   const initializedRef = useRef(false);
 
+  db.rooms.useTopicEffect(db.room("admin"), "play_sound", () => {
+    const audio = new Audio("/correct.mp3");
+    audio.play();
+  });
+
   const { data } = db.useQuery({
     gameState: {
       $: {
