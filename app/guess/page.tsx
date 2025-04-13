@@ -110,7 +110,7 @@ export default function Guess() {
               Round {gameState.round + 1} of {clues.length}
             </div>
             <div className="text-xs bg-gray-100 border border-gray-200 rounded-full w-max px-2 text-gray-600">
-              {guessesLeft} guesses left
+              {guessesLeft} {guessesLeft === 1 ? "guess" : "guesses"} left
             </div>
           </div>
         </div>
