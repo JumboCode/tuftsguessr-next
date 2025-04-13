@@ -9,7 +9,7 @@ const clues = [
   { slug: "ttc", building_id: 89 },
   { slug: "ballou", building_id: 8 },
   { slug: "blakeley", building_id: 123 },
-  { slug: "michael", building_id: 68 },
+  { slug: "michael", building_id: 79 },
   { slug: "metcalf", building_id: 152 },
   { slug: "covid", building_id: 94 },
   { slug: "packard", building_id: 77 },
