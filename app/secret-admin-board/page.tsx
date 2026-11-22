@@ -1,11 +1,12 @@
 "use client";
 
 import { Button } from "@/components/button";
-import db, { SINGLETON_ID } from "@/lib/db";
-import { useEffect } from "react";
+import db, { INSTANT_APP_ID, SINGLETON_ID } from "@/lib/db";
+import { useEffect, useRef } from "react";
 
 export default function StartBoard() {
-  const { data } = db.useQuery({
+  const resetRef = useRef(false);
+  const { data, error } = db.useQuery({
     gameState: {
       $: {
         where: {
@@ -16,9 +17,11 @@ export default function StartBoard() {
     players: {},
   });
 
-  // Reset game state when page loads
+  // Reset game state once when the page loads. `update` also creates the
+  // singleton record if it does not exist yet (for example, a new Instant app).
   useEffect(() => {
-    if (!data) return;
+    if (!data || resetRef.current) return;
+    resetRef.current = true;
 
     db.transact(
       db.tx.gameState[SINGLETON_ID].update({
@@ -29,13 +32,30 @@ export default function StartBoard() {
     );
   }, [data]);
 
+  if (!INSTANT_APP_ID) {
+    return (
+      <div className="p-4 text-red-700">
+        NEXT_PUBLIC_INSTANT_APP_ID is not set. Add it in Vercel (Project
+        Settings → Environment Variables) and redeploy.
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 text-red-700">
+        Could not load the game from InstantDB: {error.message}
+      </div>
+    );
+  }
+
   if (!data) {
     return <div className="p-4">Loading...</div>;
   }
 
   const gameState = data.gameState[0];
   if (!gameState) {
-    return <div className="p-4">Game state not found</div>;
+    return <div className="p-4">Setting up game state...</div>;
   }
 
   const sortedPlayers = [...(data.players || [])].sort(

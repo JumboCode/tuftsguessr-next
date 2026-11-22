@@ -150,6 +150,7 @@ const buildings = [
   { building_id: 182, name: "10 Winthrop St" },
   { building_id: 184, name: "Wren Hall" },
   { building_id: 185, name: "Wyeth House" },
+  { building_id: 186, name: "Pachyderm Place" },
 ];
 
 export default buildings;
