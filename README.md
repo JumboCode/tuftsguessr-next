@@ -4,6 +4,8 @@ Tuftsguessr is a GeoGuessr-inspired game about identifying buildings on the
 Tufts University campus. Players see increasingly revealing images of a
 building and try to guess its name before the round ends.
 
+Moved to redis
+
 ## How to play
 
 1. Open the player page at `/` and enter a team name.
