@@ -4,7 +4,7 @@ import { Button } from "@/components/button";
 import { Field, Label } from "@/components/fieldset";
 import { Input } from "@/components/input";
 import usePlayerId from "@/hooks/usePlayerId";
-import db from "@/lib/db";
+import { postJson } from "@/hooks/usePoll";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -12,6 +12,8 @@ export default function Login() {
   const router = useRouter();
 
   const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const playerId = usePlayerId();
 
   return (
@@ -22,16 +24,19 @@ export default function Login() {
       </div>
       <form
         className="mt-8 max-w-xs space-y-4"
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
+          if (!playerId || submitting) return;
 
-          if (!playerId) {
-            return;
+          setSubmitting(true);
+          setError(null);
+          try {
+            await postJson("/api/players", { id: playerId, name });
+            router.push("/guess");
+          } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+            setSubmitting(false);
           }
-
-          db.transact(db.tx.players[playerId].update({ name, points: 0 }));
-
-          router.push("/guess");
         }}
       >
         <Field>
@@ -42,7 +47,8 @@ export default function Login() {
             required
           />
         </Field>
-        <Button type="submit" color="teal">
+        {error && <p className="text-sm text-red-700">{error}</p>}
+        <Button type="submit" color="teal" disabled={!playerId || submitting}>
           Start
         </Button>
       </form>

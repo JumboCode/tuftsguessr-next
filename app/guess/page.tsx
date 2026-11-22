@@ -4,109 +4,76 @@ import { Button } from "@/components/button";
 import { MagnifyingGlassIcon } from "@heroicons/react/16/solid";
 import { Input, InputGroup } from "@/components/input";
 import usePlayerId from "@/hooks/usePlayerId";
-import db, { SINGLETON_ID } from "@/lib/db";
+import usePoll, { postJson } from "@/hooks/usePoll";
 import buildings from "@/lib/buildings";
 import clues from "@/lib/clues";
+import {
+  FINAL_IMAGE,
+  MAX_GUESSES_PER_ROUND,
+  type PlayerView,
+} from "@/lib/game";
+import Link from "next/link";
 import { useState } from "react";
 import { clsx } from "clsx";
-import { id } from "@instantdb/react";
 
-interface Guess {
-  id: string;
-  round: number;
-  playerName: string;
-  buildingId: number;
-}
+const POLL_MS = 1500;
 
 export default function Guess() {
   const playerId = usePlayerId();
   const [buildingQuery, setBuildingQuery] = useState("");
-  const publishPlaySound = db.rooms.usePublishTopic(
-    db.room("admin"),
-    "play_sound"
+  const [submitting, setSubmitting] = useState(false);
+  const [guessError, setGuessError] = useState<string | null>(null);
+
+  const { data, error, refresh } = usePoll<PlayerView>(
+    playerId ? `/api/state?playerId=${encodeURIComponent(playerId)}` : null,
+    POLL_MS
   );
 
-  const { data: playerData } = db.useQuery(
-    playerId
-      ? {
-          players: {
-            $: {
-              where: {
-                id: playerId,
-              },
-            },
-          },
-        }
-      : null
-  );
-
-  const { data: gameData } = db.useQuery({
-    gameState: {
-      $: {
-        where: {
-          id: SINGLETON_ID,
-        },
-      },
-    },
-  });
-
-  const playerName = playerData?.players?.[0]?.name;
-  const currentRound = gameData?.gameState?.[0]?.round;
-
-  const query =
-    playerName && currentRound != null
-      ? {
-          guesses: {
-            $: {
-              where: {
-                playerName,
-                round: currentRound,
-              },
-            },
-          },
-        }
-      : null;
-
-  const { data: guessData } = db.useQuery(query);
-
-  if (!playerData || !gameData) {
-    return null;
+  if (!data) {
+    return (
+      <div className="p-4">
+        {error ? (
+          <p className="text-red-700">Could not load the game: {error}</p>
+        ) : (
+          "Loading..."
+        )}
+      </div>
+    );
   }
 
-  const player = playerData.players[0];
-  const gameState = gameData.gameState[0];
-  const guesses = guessData?.guesses || [];
-  const guessesLeft = gameState.round === null ? 0 : 2 - guesses.length;
+  const { game: gameState, player, myGuesses: guesses } = data;
+
+  if (!player) {
+    return (
+      <div className="p-4">
+        <p>We couldn’t find your team.</p>
+        <Link href="/" className="text-teal-700 underline">
+          Join the game
+        </Link>
+      </div>
+    );
+  }
+
+  const roundOpen =
+    gameState.round !== null &&
+    gameState.image !== null &&
+    gameState.image < FINAL_IMAGE;
+  const guessesLeft =
+    gameState.round === null ? 0 : MAX_GUESSES_PER_ROUND - guesses.length;
   const currentClue = gameState.round === null ? null : clues[gameState.round];
 
-  const handleGuess = (buildingId: number) => {
-    if (
-      guessesLeft <= 0 ||
-      !playerId ||
-      gameState.round === null ||
-      gameState.image === 4
-    )
-      return;
+  const handleGuess = async (buildingId: number) => {
+    if (guessesLeft <= 0 || !playerId || !roundOpen || submitting) return;
 
-    const isCorrect = buildingId === currentClue?.building_id;
-    const newPoints = isCorrect
-      ? (player.points || 0) + gameState.points
-      : player.points || 0;
-
-    db.transact([
-      db.tx.guesses[id()].update({
-        round: gameState.round,
-        playerName: player.name,
-        buildingId,
-      }),
-      db.tx.players[playerId].update({
-        points: newPoints,
-      }),
-    ]);
-
-    if (isCorrect) {
-      console.log("correct");
-      publishPlaySound({});
+    setSubmitting(true);
+    setGuessError(null);
+    try {
+      await postJson("/api/guess", { playerId, buildingId });
+    } catch (err) {
+      setGuessError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+      refresh();
     }
   };
 
@@ -138,6 +105,9 @@ export default function Guess() {
               </div>
             )}
           </div>
+          {(guessError || error) && (
+            <p className="mt-2 text-sm text-red-700">{guessError ?? error}</p>
+          )}
         </div>
 
         <div className="bg-white rounded-lg h-full overflow-scroll">
@@ -155,9 +125,7 @@ export default function Guess() {
 
           <div className="-mt-1 px-4 pb-8 grid grid-cols-[max-content_1fr_max-content] items-center gap-x-4">
             {filteredBuildings.map((building) => {
-              const guess = guesses.find(
-                (g) => g.buildingId === building.building_id
-              );
+              const guess = guesses.includes(building.building_id);
               const isCorrect =
                 guess && building.building_id === currentClue?.building_id;
               const isIncorrect =
@@ -175,10 +143,7 @@ export default function Guess() {
                     plain
                     onClick={() => handleGuess(building.building_id)}
                     disabled={
-                      guessesLeft <= 0 ||
-                      !!guess ||
-                      gameState.round === null ||
-                      gameState.image === 4
+                      guessesLeft <= 0 || guess || !roundOpen || submitting
                     }
                     className={clsx({
                       "bg-green-500/15 text-green-700": isCorrect,

@@ -19,17 +19,18 @@ building and try to guess its name before the round ends.
    - Image 4: 5 points
    - Final reveal: 0 points
 
-The admin controls the game from `/secret-admin-board`. Open that page to
-reset the game, choose **Start Game**, and use **Next** to advance through the
-clues. The admin board shows the current image, timer, scoreboard, and recent
-guesses. The player and admin pages share live game state through InstantDB.
+The admin controls the game from `/secret-admin-board`. Opening that page
+clears the current round. Choose **Start Game**, then use **Next** to advance
+through the clues. **Clear teams & scores** removes every team before a new
+game. The admin board shows the current image, timer, scoreboard, and recent
+guesses, and plays a sound when a team guesses correctly.
 
 ## Running locally
 
 ### Requirements
 
 - Node.js and npm
-- An InstantDB application
+- An Upstash Redis database (the free tier is enough)
 
 ### Setup
 
@@ -39,18 +40,16 @@ Install dependencies:
 npm install
 ```
 
-Create a `.env.local` file in the project root and add the public InstantDB
-application ID:
+Create a `.env.local` file in the project root with your Upstash Redis REST
+credentials:
 
 ```env
-NEXT_PUBLIC_INSTANT_APP_ID=your-instantdb-app-id
+KV_REST_API_URL=https://your-database.upstash.io
+KV_REST_API_TOKEN=your-token
 ```
 
-If the InstantDB schema has not been pushed to the application yet, run:
-
-```bash
-npm run instant
-```
+`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` also work. These values
+are secret: they stay on the server and are never sent to the browser.
 
 Start the development server:
 
@@ -66,18 +65,29 @@ npm run build
 npm start
 ```
 
+## Deploying to Vercel
+
+1. In the Vercel project, open **Storage**, choose **Upstash** (Redis) from
+   the Marketplace, create a free database, and connect it to the project.
+   Vercel adds the `KV_REST_API_*` environment variables automatically.
+2. Redeploy so the new variables take effect.
+3. Open `/secret-admin-board`. If Redis isn't connected, the page shows an
+   error that says so.
+
 ## How the game works
 
 - `lib/clues.ts` defines the ordered rounds. Each clue has a `slug` and a
   `building_id`.
 - `lib/buildings.ts` maps building IDs to the names shown to players.
-- The admin initializes a round and updates the shared image and point value
-  every 15 seconds.
-- Players submit guesses through InstantDB. Each player can submit two guesses
-  for the current round, and a correct building ID updates their score.
+- Game state lives in Redis and is read and written only through the API
+  routes in `app/api/`. See `lib/store.ts` for the key layout.
+- The admin browser runs the 15-second timer and sends each image change to
+  `/api/admin/state`. Keep the admin board open for the whole game.
+- Players' phones check `/api/state` every 1.5 seconds; the admin board checks
+  every second. Polling pauses while a tab is in the background.
+- Players submit guesses to `/api/guess`. The server checks the answer, limits
+  each team to two guesses per round, and awards the points currently shown.
 - The final image displays the building name and ends guessing for that round.
-- The game uses a shared singleton game-state record, so all connected
-  browsers see the same round and timer state.
 
 ## Adding and storing clue images
 

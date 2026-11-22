@@ -1,147 +1,102 @@
 "use client";
 
 import { Button } from "@/components/button";
-import clues from "@/lib/clues";
-import db, { SINGLETON_ID } from "@/lib/db";
-import { useParams } from "next/navigation";
-import { useEffect, useState, useRef } from "react";
-import clsx from "clsx";
+import usePoll, { postJson } from "@/hooks/usePoll";
 import buildings from "@/lib/buildings";
-
-const IMAGE_TO_POINTS = {
-  0: 100,
-  1: 50,
-  2: 25,
-  3: 5,
-  4: 0,
-} as const;
-
-const SECONDS = 15;
+import clues from "@/lib/clues";
+import {
+  FINAL_IMAGE,
+  SECONDS_PER_IMAGE,
+  pointsForImage,
+  type AdminView,
+} from "@/lib/game";
+import { useParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import clsx from "clsx";
 
 export default function Board() {
   const { round } = useParams<{ round: string }>();
-  const [displaySeconds, setDisplaySeconds] = useState(SECONDS);
-  const timerRef = useRef<number | undefined>(undefined);
-  const secondsRef = useRef<number>(SECONDS);
-  const initializedRef = useRef(false);
+  const roundNum = parseInt(round);
+  const clue = clues[roundNum];
 
-  db.rooms.useTopicEffect(db.room("admin"), "play_sound", () => {
-    const audio = new Audio("/correct.mp3");
-    audio.play();
-  });
+  // The admin browser owns the timer and pushes each image change to the server.
+  const [image, setImage] = useState(0);
+  const [seconds, setSeconds] = useState(SECONDS_PER_IMAGE);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
-  const { data } = db.useQuery({
-    gameState: {
-      $: {
-        where: {
-          id: SINGLETON_ID,
-        },
-      },
-    },
-    players: {},
-    guesses: {
-      $: {
-        where: {
-          round: parseInt(round),
-        },
-        order: {
-          serverCreatedAt: "desc",
-        },
-        limit: 15,
-      },
-    },
-  });
+  const { data, error } = usePoll<AdminView>(
+    `/api/admin/state?round=${roundNum}`,
+    1000
+  );
 
-  // Initialize only when round changes
   useEffect(() => {
-    if (!data || initializedRef.current) return;
+    if (!clue) return;
+    let currentImage = 0;
+    let remaining = SECONDS_PER_IMAGE;
 
-    initializedRef.current = true;
-    secondsRef.current = SECONDS;
-    setDisplaySeconds(SECONDS);
-    db.transact(
-      db.tx.gameState[SINGLETON_ID].update({
-        round: parseInt(round),
-        image: 0,
-        points: IMAGE_TO_POINTS[0],
-      })
-    );
-  }, [round, data]);
+    const push = (img: number) =>
+      postJson("/api/admin/state", { action: "set", round: roundNum, image: img })
+        .then(() => setSyncError(null))
+        .catch((err) =>
+          setSyncError(err instanceof Error ? err.message : String(err))
+        );
 
-  // Timer effect
-  useEffect(() => {
-    if (!data) return;
+    setImage(0);
+    setSeconds(SECONDS_PER_IMAGE);
+    push(0);
 
-    // Clear any existing timer
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-
-    // Set up new timer
-    timerRef.current = window.setInterval(() => {
-      secondsRef.current -= 1;
-      setDisplaySeconds(secondsRef.current);
-
-      if (secondsRef.current <= 0) {
-        const gameState = data.gameState[0];
-        const nextImage = gameState.image + 1;
-        if (nextImage <= 4) {
-          db.transact(
-            db.tx.gameState[SINGLETON_ID].update({
-              image: nextImage,
-              points:
-                IMAGE_TO_POINTS[nextImage as keyof typeof IMAGE_TO_POINTS] || 0,
-            })
-          );
-        }
-        secondsRef.current = SECONDS;
-        setDisplaySeconds(SECONDS);
+    const timer = window.setInterval(() => {
+      if (currentImage >= FINAL_IMAGE) return;
+      remaining -= 1;
+      if (remaining <= 0) {
+        currentImage += 1;
+        remaining = SECONDS_PER_IMAGE;
+        setImage(currentImage);
+        push(currentImage);
       }
+      setSeconds(remaining);
     }, 1000);
 
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, [data]);
+    return () => window.clearInterval(timer);
+  }, [roundNum, clue]);
 
-  if (!data) {
-    return <div className="p-4">Loading...</div>;
+  // Play a sound whenever a new correct guess comes in.
+  const lastCorrect = useRef<number | null>(null);
+  const correctCount = data?.correctCount;
+  useEffect(() => {
+    if (correctCount === undefined) return;
+    if (lastCorrect.current !== null && correctCount > lastCorrect.current) {
+      new Audio("/correct.mp3").play().catch(() => {});
+    }
+    lastCorrect.current = correctCount;
+  }, [correctCount]);
+  useEffect(() => {
+    lastCorrect.current = null;
+  }, [roundNum]);
+
+  if (!clue) {
+    return <div className="p-4">Round {round} doesn’t exist.</div>;
   }
 
-  const gameState = data.gameState[0];
-  if (!gameState) {
-    return <div className="p-4">Game state not found</div>;
-  }
-
-  if (gameState.round === null) {
-    return <div className="p-4">No round yet</div>;
-  }
-
-  const clue = clues[gameState.round];
-  const imageUrl = `/photos/${clue.slug}_${
-    gameState.image === 4 ? 4 : gameState.image + 1
-  }.jpg`;
-
+  const imageUrl = `/photos/${clue.slug}_${Math.min(image + 1, 4)}.jpg`;
   const building = buildings.find((b) => b.building_id === clue.building_id);
   const buildingName = building?.name || "";
 
-  const sortedPlayers = [...(data.players || [])].sort(
-    (a, b) => b.points - a.points
-  );
-
+  const players = data?.players ?? [];
+  const guesses = data?.guesses ?? [];
+  const sortedPlayers = [...players].sort((a, b) => b.points - a.points);
   const correctPlayers = new Set(
-    (data.guesses || [])
+    guesses
       .filter((guess) => guess.buildingId === clue.building_id)
       .map((guess) => guess.playerName)
   );
+  const shownError = syncError ?? error;
 
   return (
     <div className="grid grid-cols-[auto_minmax(400px,1fr)] h-screen items-center">
       <div className="relative">
         <img src={imageUrl} alt="" className="max-h-screen object-contain" />
-        {gameState.image === 4 && (
+        {image === FINAL_IMAGE && (
           <div className="absolute inset-0 bg-white/75 flex items-center justify-center">
             <p className="text-6xl font-bold text-gray-950">{buildingName}</p>
           </div>
@@ -151,22 +106,29 @@ export default function Board() {
         <div>
           <div className="flex justify-between items-end">
             <p className="font-medium text-lg text-gray-700">
-              Round {gameState.round + 1} of {clues.length}
+              Round {roundNum + 1} of {clues.length}
             </p>
-            {gameState.round + 1 < clues.length && (
-              <Button href={`/secret-admin-board/${gameState.round + 1}`} plain>
+            {roundNum + 1 < clues.length ? (
+              <Button href={`/secret-admin-board/${roundNum + 1}`} plain>
                 Next
+              </Button>
+            ) : (
+              <Button href="/secret-admin-board" plain>
+                Final scores
               </Button>
             )}
           </div>
           <p className="text-3xl font-bold text-gray-950">
-            {gameState.image >= 5
+            {image >= FINAL_IMAGE
               ? "0:00"
-              : `0:${displaySeconds.toString().padStart(2, "0")}`}
+              : `0:${seconds.toString().padStart(2, "0")}`}
           </p>
           <p className="text-3xl font-bold text-gray-950 tabular-nums">
-            {gameState.points} points
+            {pointsForImage(image)} points
           </p>
+          {shownError && (
+            <p className="mt-2 text-sm text-red-700">{shownError}</p>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto">
           <div className="space-y-1">
@@ -189,7 +151,7 @@ export default function Board() {
           <div className="mt-4">
             <h3 className="font-medium text-gray-900 mb-2">Latest Guesses</h3>
             <div className="space-y-1">
-              {(data.guesses || []).map((guess) => (
+              {guesses.map((guess) => (
                 <div
                   key={guess.id}
                   className="bg-gray-50 px-2 py-1 rounded text-sm"
